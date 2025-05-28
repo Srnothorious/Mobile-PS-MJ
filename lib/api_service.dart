@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 // Importa modelo Task
 import 'models/task.dart';
+// Importa helper para logs condicionais
+import 'helpers/api_helper.dart';
 
 // Serviço API para autenticação e CRUD de tarefas
 class ApiService {
@@ -38,27 +40,30 @@ class ApiService {
   // Cria nova tarefa na API
   static Future<void> createTask(String token, Task task) async {
     try {
-      print('POST ${baseUrl}tasks');
-      print('Body: ${jsonEncode(task.toJson())}');
+      const url = '${baseUrl}tasks';
+      final body = jsonEncode(task.toJson());
+
+      ApiHelper.debugLog('POST $url');
+      ApiHelper.debugLog('Body: $body');
 
       final response = await http.post(
-        Uri.parse('${baseUrl}tasks'), // Endpoint de criação
+        Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode(task.toJson()), // Dados da tarefa em JSON
+        body: body,
       );
 
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
+      ApiHelper.debugLog('Response Status: ${response.statusCode}');
+      ApiHelper.debugLog('Response Body: ${response.body}');
 
       if (response.statusCode != 200 && response.statusCode != 201) {
-        final errorMessage = _extractErrorMessage(response.body);
+        final errorMessage = ApiHelper.extractErrorMessage(response.body);
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('Erro em createTask: $e');
+      ApiHelper.debugLog('Erro em createTask: $e');
       rethrow;
     }
   }
@@ -66,27 +71,30 @@ class ApiService {
   // Atualiza tarefa existente
   static Future<void> updateTask(String token, Task task) async {
     try {
-      print('PUT ${baseUrl}tasks/${task.id}');
-      print('Body: ${jsonEncode(task.toJson())}');
+      final url = '${baseUrl}tasks/${task.id}';
+      final body = jsonEncode(task.toJson());
+
+      ApiHelper.debugLog('PUT $url');
+      ApiHelper.debugLog('Body: $body');
 
       final response = await http.put(
-        Uri.parse('${baseUrl}tasks/${task.id}'), // Endpoint com ID da tarefa
+        Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode(task.toJson()), // Novos dados em JSON
+        body: body,
       );
 
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
+      ApiHelper.debugLog('Response Status: ${response.statusCode}');
+      ApiHelper.debugLog('Response Body: ${response.body}');
 
       if (response.statusCode != 200 && response.statusCode != 204) {
-        final errorMessage = _extractErrorMessage(response.body);
+        final errorMessage = ApiHelper.extractErrorMessage(response.body);
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('Erro em updateTask: $e');
+      ApiHelper.debugLog('Erro em updateTask: $e');
       rethrow;
     }
   }
@@ -105,40 +113,5 @@ class ApiService {
       Uri.parse('${baseUrl}tasks?completed=true'), // Filtro de concluídas
       headers: {'Authorization': 'Bearer $token'},
     );
-  }
-
-  // Extrai mensagens de erro do JSON de resposta
-  static String _extractErrorMessage(String responseBody) {
-    try {
-      final errorJson = jsonDecode(responseBody);
-
-      // Se há detalhes com mensagens específicas
-      if (errorJson['details'] != null && errorJson['details'] is List) {
-        final details = errorJson['details'] as List;
-        final messages = details
-            .where((detail) => detail['message'] != null)
-            .map((detail) => detail['message'] as String)
-            .toList();
-
-        if (messages.isNotEmpty) {
-          return messages.join(', ');
-        }
-      }
-
-      // Se há uma mensagem de erro geral
-      if (errorJson['error'] != null) {
-        return errorJson['error'] as String;
-      }
-
-      // Se há uma mensagem simples
-      if (errorJson['message'] != null) {
-        return errorJson['message'] as String;
-      }
-
-      return 'Erro desconhecido';
-    } catch (e) {
-      // Se não conseguir parsear o JSON, retorna o corpo da resposta
-      return responseBody;
-    }
   }
 }
