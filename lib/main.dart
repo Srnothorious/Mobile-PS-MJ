@@ -7,11 +7,13 @@ import 'theme.dart';
 
 // Função principal do app
 void main() {
-  runApp(MyApp()); // Executa o widget principal
+  runApp(const MyApp()); // Executa o widget principal
 }
 
 // Widget principal que mantém estado (para alternar tema)
 class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
   @override
   State<MyApp> createState() => _MyAppState(); // Cria estado interno
 }

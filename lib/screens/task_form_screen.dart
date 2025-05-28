@@ -6,7 +6,7 @@ class TaskFormScreen extends StatefulWidget {
   final String token; // Token de autenticação
   final Task? existing; // Tarefa existente para edição
 
-  TaskFormScreen({required this.token, this.existing});
+  const TaskFormScreen({super.key, required this.token, this.existing});
 
   @override
   State<TaskFormScreen> createState() => _TaskFormScreenState();
@@ -17,6 +17,21 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   final descriptionController = TextEditingController(); // Controller descrição
   final dateController = TextEditingController(); // Controller data
   String priority = 'baixa'; // Prioridade padrão
+  String? originalIsoDate; // Armazena a data ISO original
+
+  // Formata data ISO para formato "Dia/Mes/Ano às Hora"
+  String formatDateForDisplay(String isoDate) {
+    try {
+      final dateTime = DateTime.parse(isoDate);
+      final date =
+          '${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year}';
+      final time =
+          '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+      return '$date às $time';
+    } catch (e) {
+      return isoDate; // Retorna original se houver erro
+    }
+  }
 
   @override
   void initState() {
@@ -26,28 +41,56 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       titleController.text = widget.existing!.title; // Preenche título
       descriptionController.text =
           widget.existing!.description; // Preenche descrição
-      dateController.text =
-          widget.existing!.date; // Preenche data (já no formato ISO esperado)
+      originalIsoDate = widget.existing!.date; // Armazena ISO original
+      dateController.text = formatDateForDisplay(
+          widget.existing!.date); // Preenche data formatada
       priority = widget.existing!.priority; // Preenche prioridade
     }
   }
 
   // Salva tarefa (cria ou atualiza)
-  void saveTask() {
-    final task = Task(
-      id: widget.existing?.id, // Mantém ID se existir (edição)
-      title: titleController.text, // Título
-      description: descriptionController.text, // Descrição
-      date: dateController.text, // Data/hora em ISO 8601
-      priority: priority, // Prioridade
-      done: widget.existing?.done ?? false, // Status concluído
-    );
-    if (widget.existing == null) {
-      ApiService.createTask(widget.token, task); // Cria tarefa
-    } else {
-      ApiService.updateTask(widget.token, task); // Atualiza tarefa
+  void saveTask() async {
+    try {
+      // Validações
+      if (titleController.text.trim().isEmpty) {
+        throw Exception('Título é obrigatório');
+      }
+
+      if (originalIsoDate == null || originalIsoDate!.isEmpty) {
+        throw Exception('Data e hora são obrigatórias');
+      }
+
+      final task = Task(
+        id: widget.existing?.id, // Mantém ID se existir (edição)
+        title: titleController.text.trim(), // Título
+        description: descriptionController.text.trim(), // Descrição
+        date: originalIsoDate!, // Data/hora em ISO 8601
+        priority: priority, // Prioridade
+        completed: widget.existing?.completed ?? false, // Status concluído
+      );
+
+      print('Salvando tarefa: ${task.toJson()}');
+
+      if (widget.existing == null) {
+        await ApiService.createTask(widget.token, task); // Cria tarefa
+        print('Tarefa criada com sucesso');
+      } else {
+        await ApiService.updateTask(widget.token, task); // Atualiza tarefa
+        print('Tarefa atualizada com sucesso');
+      }
+
+      if (mounted) {
+        Navigator.pop(context); // Volta para a tela anterior
+      }
+    } catch (e) {
+      final errorMessage = e.toString().replaceFirst('Exception: ', '');
+      print('Erro ao salvar tarefa: $errorMessage');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro: $errorMessage')),
+        );
+      }
     }
-    Navigator.pop(context); // Volta para a tela anterior
   }
 
   @override
@@ -62,16 +105,16 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           children: [
             TextField(
               controller: titleController, // Campo título
-              decoration: InputDecoration(labelText: 'Título'),
+              decoration: const InputDecoration(labelText: 'Título'),
             ),
             TextField(
               controller: descriptionController, // Campo descrição
-              decoration: InputDecoration(labelText: 'Descrição'),
+              decoration: const InputDecoration(labelText: 'Descrição'),
             ),
             TextField(
               controller: dateController, // Campo data/hora
               readOnly: true, // Desabilita digitação manual
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Data e Hora',
                 suffixIcon: Icon(
                   Icons.calendar_today,
@@ -86,7 +129,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                   lastDate: DateTime(2100),
                 );
 
-                if (pickedDate == null) return; // Se cancelou, sai
+                if (pickedDate == null || !mounted) {
+                  return; // Se cancelou ou widget desmontado, sai
+                }
 
                 // Abre seletor de hora
                 final pickedTime = await showTimePicker(
@@ -94,7 +139,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                   initialTime: TimeOfDay.now(),
                 );
 
-                if (pickedTime == null) return; // Se cancelou, sai
+                if (pickedTime == null || !mounted) {
+                  return; // Se cancelou ou widget desmontado, sai
+                }
 
                 // Combina data e hora escolhidas
                 final combined = DateTime(
@@ -110,22 +157,22 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
 
                 // Atualiza o campo com a data formatada
                 setState(() {
-                  dateController.text = isoString;
+                  originalIsoDate = isoString; // Armazena ISO original
+                  dateController.text = formatDateForDisplay(isoString);
                 });
               },
             ),
             DropdownButton<String>(
               value: priority, // Prioridade selecionada
-              items:
-                  ['baixa', 'média', 'alta']
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
+              items: ['baixa', 'média', 'alta']
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
               onChanged: (val) => setState(() => priority = val!),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: saveTask, // Botão salvar tarefa
-              child: Text('Salvar'),
+              child: const Text('Salvar'),
             ),
           ],
         ),
