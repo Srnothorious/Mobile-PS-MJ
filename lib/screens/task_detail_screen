@@ -1,0 +1,260 @@
+// Tela de listagem de tarefas com integração para visualização detalhada, ordenação, busca e filtros
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../models/task.dart';
+import '../services/task_service.dart';
+import 'task_form_screen.dart';
+import 'task_detail_screen.dart'; // Importa nova tela de detalhes
+
+class TaskListScreen extends StatefulWidget {
+  final String token;
+
+  TaskListScreen({required this.token});
+
+  @override
+  _TaskListScreenState createState() => _TaskListScreenState();
+}
+
+class _TaskListScreenState extends State<TaskListScreen> {
+  List<Task> tasks = []; // Lista original
+  List<Task> filteredTasks = []; // Lista filtrada pela busca e filtros
+  bool isLoading = true;
+  String sortOption = 'Padrão'; // Opção atual de ordenação
+  String searchQuery = ''; // Texto da busca atual
+
+  // Filtros
+  String? selectedPriority; // alta, media, baixa
+  String? selectedStatus; // concluida ou pendente
+  DateTime? selectedDateFrom;
+  DateTime? selectedDateTo;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchTasks();
+  }
+
+  Future<void> fetchTasks() async {
+    final fetchedTasks = await TaskService(widget.token).fetchTasks();
+    setState(() {
+      tasks = applySorting(fetchedTasks); // Ordena ao carregar
+      applyFiltersAndSearch();
+      isLoading = false;
+    });
+  }
+
+  // Ordena as tarefas localmente conforme a opção escolhida
+  List<Task> applySorting(List<Task> list) {
+    final sorted = List<Task>.from(list);
+    sorted.sort((a, b) {
+      if (a.completed != b.completed) {
+        return a.completed ? 1 : -1;
+      }
+      if (sortOption == 'Data') {
+        return a.date.compareTo(b.date);
+      } else if (sortOption == 'Prioridade') {
+        final priorityOrder = {'alta': 0, 'media': 1, 'baixa': 2};
+        return (priorityOrder[a.priority] ?? 3).compareTo(priorityOrder[b.priority] ?? 3);
+      }
+      return 0;
+    });
+    return sorted;
+  }
+
+  // Atualiza a opção de ordenação e aplica novamente os filtros e busca
+  void changeSorting(String? newValue) {
+    if (newValue != null) {
+      setState(() {
+        sortOption = newValue;
+        tasks = applySorting(tasks);
+        applyFiltersAndSearch();
+      });
+    }
+  }
+
+  // Atualiza a busca e refiltra
+  void updateSearch(String value) {
+    setState(() {
+      searchQuery = value.toLowerCase();
+      applyFiltersAndSearch();
+    });
+  }
+
+  // Aplica busca e filtros locais
+  void applyFiltersAndSearch() {
+    filteredTasks = tasks.where((task) {
+      final matchesSearch = task.title.toLowerCase().contains(searchQuery);
+      final matchesPriority = selectedPriority == null || task.priority == selectedPriority;
+      final matchesStatus = selectedStatus == null || (selectedStatus == 'concluida' ? task.completed : !task.completed);
+      final matchesDateFrom = selectedDateFrom == null || task.date.isAfter(selectedDateFrom!.subtract(Duration(days: 1)));
+      final matchesDateTo = selectedDateTo == null || task.date.isBefore(selectedDateTo!.add(Duration(days: 1)));
+      return matchesSearch && matchesPriority && matchesStatus && matchesDateFrom && matchesDateTo;
+    }).toList();
+  }
+
+  // Abre um seletor de data e retorna a data escolhida
+  Future<void> pickDateRange() async {
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (range != null) {
+      setState(() {
+        selectedDateFrom = range.start;
+        selectedDateTo = range.end;
+        applyFiltersAndSearch();
+      });
+    }
+  }
+
+  // Limpa filtros aplicados
+  void clearFilters() {
+    setState(() {
+      selectedPriority = null;
+      selectedStatus = null;
+      selectedDateFrom = null;
+      selectedDateTo = null;
+      applyFiltersAndSearch();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Minhas Tarefas'),
+            // Campo de busca embutido no AppBar
+            TextField(
+              onChanged: updateSearch,
+              style: TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Buscar por título...',
+                hintStyle: TextStyle(color: Colors.white70),
+                border: InputBorder.none,
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          // Dropdown de ordenação
+          DropdownButton<String>(
+            value: sortOption,
+            items: ['Padrão', 'Data', 'Prioridade']
+                .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
+                .toList(),
+            onChanged: changeSorting,
+            underline: SizedBox(),
+            icon: Icon(Icons.sort, color: Colors.white),
+            dropdownColor: Colors.grey[800],
+          ),
+          IconButton(
+            icon: Icon(Icons.filter_list),
+            onPressed: () async {
+              await showModalBottomSheet(
+                context: context,
+                builder: (_) => buildFilterSheet(),
+              );
+            },
+          )
+        ],
+      ),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              itemCount: filteredTasks.length,
+              itemBuilder: (context, index) {
+                final task = filteredTasks[index];
+                return ListTile(
+                  title: Text(task.title),
+                  subtitle: Text(task.completed ? 'Concluída' : 'Pendente'),
+                  trailing: Icon(task.completed ? Icons.check_circle : Icons.circle_outlined),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TaskDetailScreen(task: task, token: widget.token),
+                      ),
+                    );
+                    fetchTasks();
+                  },
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TaskFormScreen(token: widget.token),
+            ),
+          );
+          fetchTasks();
+        },
+        child: Icon(Icons.add),
+      ),
+    );
+  }
+
+  // Modal de filtros com dropdowns e seletor de data
+  Widget buildFilterSheet() {
+    return Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text('Filtros', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+              TextButton(onPressed: clearFilters, child: Text('Limpar'))
+            ],
+          ),
+          DropdownButton<String>(
+            value: selectedPriority,
+            hint: Text('Filtrar por prioridade'),
+            isExpanded: true,
+            items: ['alta', 'media', 'baixa']
+                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .toList(),
+            onChanged: (value) {
+              setState(() {
+                selectedPriority = value;
+                applyFiltersAndSearch();
+              });
+            },
+          ),
+          DropdownButton<String>(
+            value: selectedStatus,
+            hint: Text('Filtrar por status'),
+            isExpanded: true,
+            items: ['pendente', 'concluida']
+                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .toList(),
+            onChanged: (value) {
+              setState(() {
+                selectedStatus = value;
+                applyFiltersAndSearch();
+              });
+            },
+          ),
+          SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  icon: Icon(Icons.date_range),
+                  label: Text('Período'),
+                  onPressed: pickDateRange,
+                ),
+              )
+            ],
+          )
+        ],
+      ),
+    );
+  }
+}

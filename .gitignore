@@ -1,0 +1,3 @@
+!/lib/
+!/lib/** <- nao ignora arquivos novos
+!/pubspec.yaml
