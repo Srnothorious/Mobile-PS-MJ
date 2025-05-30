@@ -1,39 +1,55 @@
-// Importa o pacote Flutter com widgets básicos de UI
+// Importa Flutter UI
 import 'package:flutter/material.dart';
-// Importa a tela de login
-import 'screens/login_screen.dart';
-// Importa definições de tema claro e escuro
-import 'theme.dart';
+// Importa tema personalizado
+import 'presentation/themes/app_themes.dart';
+// Importa tela de splash
+import 'screens/splash_screen.dart';
+// Importa configuração de localização
+import 'package:flutter_localizations/flutter_localizations.dart';
 
-// Função principal do app
 void main() {
-  runApp(const MyApp()); // Executa o widget principal
+  runApp(const TodoApp()); // Inicia o app
 }
 
-// Widget principal que mantém estado (para alternar tema)
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+// Widget principal do aplicativo
+class TodoApp extends StatefulWidget {
+  const TodoApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState(); // Cria estado interno
+  State<TodoApp> createState() => _TodoAppState();
 }
 
-// Estado do widget principal
-class _MyAppState extends State<MyApp> {
-  bool isDark = false; // Controle do modo escuro
+// Estado do aplicativo que controla tema
+class _TodoAppState extends State<TodoApp> {
+  bool isDarkMode = false; // Controle do tema atual
 
-  // Método para alternar tema
+  // Alterna entre tema claro e escuro
   void toggleTheme() {
-    setState(() => isDark = !isDark); // Inverte valor e refaz UI
+    setState(() {
+      isDarkMode = !isDarkMode;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Sr. Jubileu', // Título do aplicativo
-      theme: isDark ? darkTheme : lightTheme, // Escolhe tema
-      home: LoginScreen(toggleTheme: toggleTheme), // Tela inicial
-      debugShowCheckedModeBanner: false, // Remove banner de debug
+      title: 'Todo App',
+      debugShowCheckedModeBanner: false, // Remove a flag DEBUG
+      theme: AppThemes.lightTheme, // Tema claro
+      darkTheme: AppThemes.darkTheme, // Tema escuro
+      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+
+      // Configuração de localização em português brasileiro
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('pt', 'BR'), // Português brasileiro
+      ],
+
+      home: SplashScreen(toggleTheme: toggleTheme), // Tela inicial
     );
   }
 }

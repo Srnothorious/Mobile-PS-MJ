@@ -8,9 +8,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  uuid: ^4.2.1
-  flutter_local_notifications: ^17.0.0
+  flutter_localizations:
+    sdk: flutter
   http: ^0.13.6
+  intl: 0.20.2
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
