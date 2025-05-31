@@ -158,7 +158,7 @@ class ApiService {
 
   static Future<void> deleteDoneTasks(String token) async {
     final response = await http.delete(
-      Uri.parse('${baseUrl}tasks?completed=true'),
+      Uri.parse('${baseUrl}tasks/completed'), // rota corrigida
       headers: {'Authorization': 'Bearer $token'},
     );
 
